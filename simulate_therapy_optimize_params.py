@@ -20,7 +20,17 @@ with open(path_to_ARdata, 'r') as f:
         num = float(''.join(list(i)[:-1]))
         if num>=1:
             AxR.append(num)
-pass
+# Plot neoantigen immunogenicity (Supp. Fig 4a)
+axr_df = pd.DataFrame({'axr': AxR})
+color_palette = ['orchid', 'purple']
+sns.set_palette(sns.color_palette(color_palette))
+plt.figure(figsize=(5, 4))
+plt.subplots_adjust(left=0.15, right=0.95, bottom=0.2, top=0.95)
+ax = sns.histplot(data=axr_df, x='axr', stat='percent', log_scale=True, bins=20)
+plt.xlabel('Neoantigen Quality (AxR)')
+plt.ylabel('Percent')
+plt.savefig(path_to_gridsearch + "AxR_hist.png")
+plt.savefig(path_to_gridsearch + "AxR_hist.svg", format='svg')
 
 # Set up gridsearch to find initial value
 maxruns = 5000
@@ -42,7 +52,7 @@ if regenerate_gridsearch==True:
     dill.dump(ans_array, open(path_to_gridsearch + "gridsearch_" + model_type + "_" + str(n) + "logspace_nparray_maxruns_" + str(maxruns) + ".dump", 'wb'))
 
 
-# Plot heatmaps (Supplementary Fig 3b):
+# Plot heatmaps (Supplementary Fig 4b):
 ans_array = dill.load(open(path_to_gridsearch + "gridsearch_" + model_type + "_" + str(n) + "logspace_nparray_maxruns_" + str(maxruns) + ".dump", 'rb'))
 plt.figure(figsize=(6, 5))
 plt.subplots_adjust(left=0.2, right=1, bottom=0.2, top=0.94)

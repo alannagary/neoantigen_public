@@ -1,17 +1,14 @@
-import numpy as np
-import dill
 import sys
 import argparse
+import numpy as np
+import dill
 
 parser = argparse.ArgumentParser('data_gen_Hyak.py')
-
 parser.add_argument('--task_id', type=str, default='0')
 parser.add_argument('--db_frac', type=float, default=0.72)
 parser.add_argument('--mut_rate', type=float, default=0.015)
 parser.add_argument('--job_id', type=str, default='0')
-
 args = parser.parse_args()
-
 
 class Population:
 
@@ -261,8 +258,7 @@ def generate_tree(db_frac, mut_rate, task_id):
               open(f"../data/{args.job_id}/dilltree_{tree_lab}.dump", 'wb'))
     return root, root_dict
 
-
-sys.setrecursionlimit(10 ** 6)
+sys.setrecursionlimit(10 ** 6) # This is required for high-mutation-rate trees. If you increase the mutation rate even more, you may need to set the recursion limit even higher!
 
 if __name__ == "__main__":
     generate_tree(args.db_frac, args.mut_rate, args.task_id)
