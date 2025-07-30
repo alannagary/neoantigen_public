@@ -1,3 +1,4 @@
+
 ### Library loads ###
 library(readxl)
 library(tidyverse)
@@ -135,71 +136,61 @@ neoant_df = data.frame(A, R, AxR, neoant_labs,
                        id=crc_Neoant_File_trimmed$id,
                        response=crc_Neoant_File_trimmed$response) # bind all neoant scores, labels into one dataframe
 
-# Plotting
-pl1 = ggplot(data=neoant_df, aes(x = A)) +
-  geom_histogram(bins=50) +
-  scale_x_log10() +
-  labs(title='Histogram of A', x = "A", y = 'Count') +
-  geom_vline(aes(xintercept=median(A)),
-             color="red", linetype="dashed", linewidth=1)+
-  geom_vline(aes(xintercept=mean(A)),
-             color="blue", linetype="dashed", linewidth=1)
-pl1
+# Plotting A, R, and AxR distributions (uncomment to plot!)
+# pl1 = ggplot(data=neoant_df, aes(x = A)) +
+#   geom_histogram(bins=50) +
+#   scale_x_log10() +
+#   labs(title='Histogram of A', x = "A", y = 'Count') +
+#   geom_vline(aes(xintercept=median(A)),
+#              color="red", linetype="dashed", linewidth=1)+
+#   geom_vline(aes(xintercept=mean(A)),
+#              color="blue", linetype="dashed", linewidth=1)
+# pl1
 
-pl2 = ggplot(data=neoant_df, aes(x = AxR)) +
-  geom_histogram(bins=25) +
-  scale_x_log10() +
-  labs(title='Histogram of AxR', x = "AxR", y = 'Count') +
-  geom_vline(aes(xintercept=median(AxR)),
-             color="red", linetype="dashed", linewidth=1)+
-  geom_vline(aes(xintercept=mean(AxR)),
-             color="blue", linetype="dashed", linewidth=1)
-pl2
+# pl2 = ggplot(data=neoant_df, aes(x = AxR)) +
+#   geom_histogram(bins=25) +
+#   scale_x_log10() +
+#   labs(title='Histogram of AxR', x = "AxR", y = 'Count') +
+#   geom_vline(aes(xintercept=median(AxR)),
+#              color="red", linetype="dashed", linewidth=1)+
+#   geom_vline(aes(xintercept=mean(AxR)),
+#              color="blue", linetype="dashed", linewidth=1)
+# pl2
+# 
+# pl3 = ggplot(data=neoant_df, aes(x = R)) +
+#   geom_histogram(bins=25) +
+#   scale_x_log10() +
+#   labs(title='Histogram of R', x = "R", y = 'Count') +
+#   geom_vline(aes(xintercept=median(R)),
+#              color="red", linetype="dashed", linewidth=1)+
+#   geom_vline(aes(xintercept=mean(R)),
+#              color="blue", linetype="dashed", linewidth=1)
+# pl3
+# 
+# pl3 = ggplot(data=crc_Neoant_File_trimmed, aes(x = CCF)) +
+#   geom_histogram(bins=25) +
+#   scale_x_log10() +
+#   labs(title='Histogram of CCF', x = "CCF", y = 'Count') +
+#   geom_vline(aes(xintercept=median(CCF)),
+#              color="red", linetype="dashed", linewidth=1)+
+#   geom_vline(aes(xintercept=mean(CCF)),
+#              color="blue", linetype="dashed", linewidth=1)
+# pl3
 
-pl3 = ggplot(data=neoant_df, aes(x = R)) +
-  geom_histogram(bins=25) +
-  scale_x_log10() +
-  labs(title='Histogram of R', x = "R", y = 'Count') +
-  geom_vline(aes(xintercept=median(R)),
-             color="red", linetype="dashed", linewidth=1)+
-  geom_vline(aes(xintercept=mean(R)),
-             color="blue", linetype="dashed", linewidth=1)
-pl3
 
-pl3 = ggplot(data=crc_Neoant_File_trimmed, aes(x = CCF)) +
-  geom_histogram(bins=25) +
-  scale_x_log10() +
-  labs(title='Histogram of CCF', x = "CCF", y = 'Count') +
-  geom_vline(aes(xintercept=median(CCF)),
-             color="red", linetype="dashed", linewidth=1)+
-  geom_vline(aes(xintercept=mean(CCF)),
-             color="blue", linetype="dashed", linewidth=1)
-pl3
-
-
-# Restrict to strong neoantigens
+# Strong neoantigens
 summary(crc_Neoant_File_trimmed$CCF[which(AxR>=1)])
-pl3 = ggplot(data=crc_Neoant_File_trimmed[which(AxR>=1),], aes(x = CCF)) +
-  geom_histogram(bins=25) +
-  scale_x_log10() +
-  labs(title='Histogram of CCF', x = "CCF", y = 'Count') +
-  geom_vline(aes(xintercept=median(CCF)),
-             color="red", linetype="dashed", linewidth=1)+
-  geom_vline(aes(xintercept=mean(CCF)),
-             color="blue", linetype="dashed", linewidth=1)
-pl3
-
-# Trim file to reflect this
-ind = which(AxR>=1 & crc_Neoant_File_trimmed$CCF>=0.1)
+ind = which(AxR>=1 & crc_Neoant_File_trimmed$CCF>=0.1) # select strong neoantigens
 crc_Neoant_File_trimmed_strong <- crc_Neoant_File_trimmed[ind,]
 neoant_df <- neoant_df[ind,]
+total_AxR <- AxR # set aside the total AxR values
 AxR <- AxR[ind]
 
-pl4 = ggplot(data=neoant_df, aes(x = AxR)) +
-  geom_histogram() +
-  scale_x_log10() +
-  labs(title='Histogram of AxR>=1', x = "AxR", y = 'Count')
-pl4
+# pl4 = ggplot(data=neoant_df, aes(x = AxR)) +
+#   geom_histogram() +
+#   scale_x_log10() +
+#   labs(title='Histogram of AxR>=1', x = "AxR", y = 'Count')
+# pl4
 
 # Per-patient mean weighted AxR:
 pts <- crc_Neoant_File_trimmed_strong$id
@@ -210,15 +201,21 @@ clin_df <- data.frame(pt_ID = unique_pts,
                       mean_AxR = rep(0, num_pts),
                       response = rep('na', num_pts),
                       num_strong_neoant = rep(0, num_pts),
+                      num_tot_neoant = rep(0, num_pts),
+                      num_strong_clonal_neoant = rep(0, num_pts),
+                      num_tot_clonal_neoant = rep(0, num_pts),
                       PFS_days = rep(0, num_pts))
 # create data.frame where we have patient ID, mean weighted AxR, max neoant score, PFS days, and best response over course of therapy
 for (i in 1:num_pts) {
   idx <- which(pts==unique_pts[i])
-  cur_tot_AxR <- AxR[idx]
-  clin_df$max_AxR[i] <- max(cur_tot_AxR)
-  clin_df$mean_AxR[i] <- sum(cur_tot_AxR * crc_Neoant_File_trimmed_strong$CCF[idx])
+  cur_str_AxR <- AxR[idx]
+  tot_idx <-which(crc_Neoant_File_trimmed$id==unique_pts[i]) 
+  cur_tot_AxR <- total_AxR[tot_idx]
   clin_df$response[i] <- crc_Neoant_File_trimmed_strong$response[idx[1]]
-  clin_df$num_strong_neoant[i] <- length(cur_tot_AxR)
+  clin_df$num_tot_neoant[i] <- length(cur_tot_AxR)
+  clin_df$num_tot_clonal_neoant[i] <- length(which(crc_Neoant_File_trimmed$CCF[tot_idx]==1))
+  clin_df$num_strong_clonal_neoant[i] <- length(which(crc_Neoant_File_trimmed_strong$CCF[idx]==1))
+  clin_df$num_strong_neoant[i] <- length(cur_str_AxR)
   clin_df$PFS_days[i] <- crc_Neoant_File_trimmed_strong$PFS_days[idx[1]]
 }
 
@@ -277,6 +274,7 @@ for (i in 1:num_pts) {
       AxRs = c(0, AxRs) # place remaining founder cells to first spot for consistency
       ICs = c(remainder, ICs)
     }
+    clin_df$num_clonal_neoant[i] <- 0
   } else {
     max_clonal_neoant_score <- max(cur_AxR[clonal_inds])
     if (sum(ICs)<tot_tumor_size) {
@@ -287,7 +285,6 @@ for (i in 1:num_pts) {
   clin_df$mean_AxR[i] <- sum(AxRs*ICs)/tot_tumor_size
   clin_df$max_AxR[i] <- max(AxRs)
   clin_df$max_clonal_neoant[i] <- max_clonal_neoant_score
-  clin_df$num_tot_neoant[i] <- length(cur_AxR)
   print(paste(c('Patient: ', unique_pts[i]), collapse = ' '))
   print(paste(c('Initial conditions:', ICs), collapse = ' '))
   print(paste(c('AxR Immunogenicity Scores: ', AxRs), collapse = ' '))
@@ -301,47 +298,68 @@ pl6 = ggplot(data=clin_df, aes(x = response_group, y=max_clonal_neoant)) +
   geom_boxplot() +
   stat_compare_means() +
   labs(title='Strongest clonal neoantigen', x = "", y = 'AxR')
-pl6
+ggsave('SF3a_strongest_clonal.svg', height=4, width=4)
 wt_a = wilcox.test(clin_df$max_clonal_neoant ~ clin_df$response_group)
 wt_a$statistic
 wt_a$p.value
-
-# SF (b)
 
 pl6 = ggplot(data=clin_df, aes(x = response_group, y=mean_AxR)) +
   geom_boxplot() +
   stat_compare_means() +
   labs(title='Weighted mean antigenicity', x = "", y = 'AxR')
-pl6
+ggsave('SF3a_weightedmean.svg', height=4, width=4)
 wt_b = wilcox.test(clin_df$mean_AxR ~ clin_df$response_group)
 wt_b$statistic
 wt_b$p.value
-
-# SF (c)
 
 pl6 = ggplot(data=clin_df, aes(x = response_group, y=max_AxR)) +
   geom_boxplot() +
   stat_compare_means() +
   labs(title='Maximal neoantigen quality', x = "", y = 'AxR')
-pl6
+ggsave('SF3a_maxscore.svg', height=4, width=4)
 wt_c = wilcox.test(clin_df$max_AxR ~ clin_df$response_group)
 wt_c$statistic
 wt_c$p.value
 
+# SF 3 (b)
+pl6 = ggplot(data=clin_df, aes(x = response_group, y = num_tot_clonal_neoant)) +
+  geom_boxplot() +
+  stat_compare_means() +
+  #ylim(0, 3000) + 
+  labs(title='Clonal neoantigenic heterogeneity', x = "", y = 'Number of clonal neoantigens')
+ggsave('SF3b_numclonal.svg', height=4, width=4)
+
+pl6 = ggplot(data=clin_df, aes(x = response_group, y = num_strong_clonal_neoant/num_tot_clonal_neoant)) +
+  geom_boxplot() +
+  stat_compare_means() +
+  ylim(0, 0.07) + 
+  labs(title='Fraction of strong clonal neoantigens', x = "", y = 'Strong / Total')
+ggsave('SF3b_frac_clonal.svg', height=4, width=4)
+wt_c = wilcox.test(clin_df$num_strong_clonal_neoant/clin_df$num_tot_clonal_neoant ~ clin_df$response_group)
+wt_c$statistic
+wt_c$p.value
+
+
+# Responders:
+OR_df <- clin_df[which(clin_df$response_group=='OR'),]
+NR_df <- clin_df[which(clin_df$response_group=='NR'),]
+
+# Total numbers of clonal neoant:
+print('Total number of clonal neoants for OR:')
+summary(OR_df$num_tot_clonal_neoant)
+print('Total number of clonal neoants for NR:')
+summary(NR_df$num_tot_clonal_neoant)
+
+# Fraction of strong/total clonal neoant:
+print('Clonal fraction (strong/total) for OR:')
+summary(OR_df$num_strong_clonal_neoant/OR_df$num_tot_clonal_neoant)
+print('Clonal fraction (strong/total) for NR:')
+summary(NR_df$num_strong_clonal_neoant/NR_df$num_tot_clonal_neoant)
 
 
 # Additional plots (not shown in paper)
-
-pl6 = ggplot(data=clin_df, aes(x = response_group, y=num_strong_neoant)) +
-  geom_boxplot() +
-  stat_compare_means() +
-  ylim(10, 60) + 
-  labs(title='Total neoantigenic heterogeneity', x = "", y = 'Number of strong neoantigens')
-pl6
-
 pl6 = ggplot(data=clin_df, aes(x = mean_AxR, y=max_AxR)) +
   geom_smooth(method=lm) +
   geom_point() +
   labs(title='Correlation in neoantigenicity scoring', x = "weighted mean AxR", y = 'maximum AxR')
 pl6
-
