@@ -11,6 +11,7 @@ library(Biostrings)
 library(pwalign)
 library(ggpubr)
 library(ggplot2)
+library(ggbeeswarm)
 
 ### Setup ###
 setwd("C:/Users/Alanna/Desktop/Research_Code/Desktop_research/crc_neoant_clinical_validation")  
@@ -206,8 +207,11 @@ ind = which(AxR>=1 & Neoant_File_cleaned$CCF>=0.1) # select strong neoantigens
 Neoant_File_cleaned_strong <- Neoant_File_cleaned[ind,]
 neoant_df <- neoant_df[ind,]
 total_AxR <- AxR # set aside the total AxR values
-strong_AxR <- AxR[ind] # 
+strong_AxR <- AxR[ind] 
 
+print('Median CCF of strong neoantigens: ')
+print(median(neoant_df$ccf))
+print(mean(neoant_df$ccf))
 # pl4 = ggplot(data=neoant_df, aes(x = AxR)) +
 #   geom_histogram() +
 #   scale_x_log10() +
@@ -328,52 +332,46 @@ pl6 = ggplot(data=clin_df, aes(x = response_group, y=max_clonal_neoant)) +
   geom_boxplot() +
   stat_compare_means() +
   labs(title='', x = "", y = 'Clonal neoantigen AxR')
-ggsave('SF3a_strongest_clonal.svg', height=4, width=5)
-ggsave('SF3a_strongest_clonal.png', height=4, width=5)
+ggsave('SF1a_strongest_clonal.svg', height=4, width=5)
+ggsave('SF1a_strongest_clonal.png', height=4, width=5)
 wt_a = wilcox.test(clin_df$max_clonal_neoant ~ clin_df$response_group)
 wt_a$statistic
 wt_a$p.value
 
 pl6 = ggplot(data=clin_df, aes(x = response_group, y=mean_AxR)) +
+  theme(text = element_text(family = "Arial"),
+        axis.text.x = element_text(size=14, color='black'),
+        axis.text.y = element_text(size=12),
+        axis.title.y = element_text(size=14)) +
   geom_boxplot() +
   stat_compare_means() +
-  labs(title='Weighted mean antigenicity', x = "", y = 'AxR')
-ggsave('SF3a_weightedmean.svg', height=4, width=4)
-ggsave('SF3a_weightedmean.png', height=4, width=4)
+  labs(title='', x = "", y = 'Weighted mean AxR')
+ggsave('SF1b_weightedmean.svg', height=4, width=5)
+ggsave('SF1b_weightedmean.png', height=4, width=5)
 wt_b = wilcox.test(clin_df$mean_AxR ~ clin_df$response_group)
 wt_b$statistic
 wt_b$p.value
 
+
+# Not shown in paper:
+
 pl6 = ggplot(data=clin_df, aes(x = response_group, y=max_AxR)) +
-  geom_boxplot() +
+  geom_beeswarm(cex = 3) +
   stat_compare_means() +
   labs(title='Maximal neoantigen quality', x = "", y = 'AxR')
-ggsave('SF3a_maxscore.svg', height=4, width=4)
-ggsave('SF3a_maxscore.png', height=4, width=4)
+ggsave('maxscore.svg', height=4, width=4)
+ggsave('maxscore.png', height=4, width=4)
 wt_c = wilcox.test(clin_df$max_AxR ~ clin_df$response_group)
 wt_c$statistic
 wt_c$p.value
 
-# SF 3 (b)
 pl6 = ggplot(data=clin_df, aes(x = response_group, y = num_tot_clonal_neoant)) +
-  geom_boxplot() +
+  geom_beeswarm(cex = 3) +
   stat_compare_means() +
   #ylim(0, 3000) + 
   labs(title='Clonal neoantigenic heterogeneity', x = "", y = 'Number of clonal neoantigens')
-ggsave('SF3b_numclonal.svg', height=4, width=4)
-ggsave('SF3b_numclonal.png', height=4, width=4)
-
-pl6 = ggplot(data=clin_df, aes(x = response_group, y = num_strong_clonal_neoant/num_tot_clonal_neoant)) +
-  geom_boxplot() +
-  stat_compare_means() +
-  ylim(0, 0.07) + 
-  labs(title='Fraction of strong clonal neoantigens', x = "", y = 'Strong / Total')
-ggsave('SF3b_frac_clonal.svg', height=4, width=4)
-ggsave('SF3b_frac_clonal.png', height=4, width=4)
-wt_c = wilcox.test(clin_df$num_strong_clonal_neoant/clin_df$num_tot_clonal_neoant ~ clin_df$response_group)
-wt_c$statistic
-wt_c$p.value
-
+ggsave('numclonal.svg', height=4, width=4)
+ggsave('numclonal.png', height=4, width=4)
 
 # Responders:
 OR_df <- clin_df[which(clin_df$response_group=='OR'),]
@@ -400,12 +398,22 @@ pl6 = ggplot(data=clin_df, aes(x = mean_AxR, y=max_AxR)) +
 pl6
 
 pl6 = ggplot(data=clin_df, aes(x = response_group, y = num_strong_clonal_neoant)) +
-  geom_boxplot() +
+  geom_beeswarm(cex = 3) +
   stat_compare_means() +
-  #ylim(0, 3000) + 
   labs(title='Strong clonal neoantigenic heterogeneity', x = "", y = 'Number of strong clonal neoantigens')
-pl6
+ggsave('num_strong_clonal.svg', height=4, width=4)
+ggsave('num_strong_clonal.png', height=4, width=4)
+wt_c = wilcox.test(clin_df$num_strong_clonal_neoant ~ clin_df$response_group)
+wt_c$statistic
+wt_c$p.value
 
-
-
-
+pl6 = ggplot(data=clin_df, aes(x = response_group, y = num_strong_clonal_neoant/num_tot_clonal_neoant)) +
+  geom_beeswarm(cex = 3) +
+  stat_compare_means() +
+  ylim(0, 0.07) + 
+  labs(title='Fraction of strong clonal neoantigens', x = "", y = 'Strong / Total')
+ggsave('frac_clonal.svg', height=4, width=4)
+ggsave('frac_clonal.png', height=4, width=4)
+wt_c = wilcox.test(clin_df$num_strong_clonal_neoant/clin_df$num_tot_clonal_neoant ~ clin_df$response_group)
+wt_c$statistic
+wt_c$p.value
