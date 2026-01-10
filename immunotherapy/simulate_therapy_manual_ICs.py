@@ -14,6 +14,7 @@ import os
 path_to_ARdata = 'C:/Users/Alanna/Desktop/Research_Code/Desktop_research/AxR_data.txt' # Path to AxR_data.txt
 path_to_MMRD_data = 'C:/Users/Alanna/Desktop/Research_Code/neoantigens/hyak_data/updated_code_oct_24/MMRD/'
 path_to_MMRP_data = 'C:/Users/Alanna/Desktop/Research_Code/neoantigens/hyak_data/updated_code_oct_24/MMRP/'
+path_to_clin_data = 'C:/Users/Alanna/Desktop/Research_Code/Desktop_research/crc_neoant_clinical_validation/'
 path_base = 'C:/Users/Alanna/Desktop/Research_Code/neoantigens/hyak_data/updated_code_oct_24/' # Path for cohort plots and therapydata
 model_type = 'monoclonal' # model type of T cell responses. Acceptable to run 'polyclonal' as well, but it may be slow.
 debug = False # Do you want to manually re-simulate immunotherapy for all 10,000 tumors? This is slow if set to True!
@@ -390,7 +391,7 @@ except:
                 color = 'tab:blue'
                 ax2.plot(t[:first_year_ind], effector_over_time[:first_year_ind] / effector_over_time[0], color=color, linewidth=2)
                 ax2.set_ylabel('Relative T cell population', color=color)
-                ax2.set_ylim([0, 100])
+                ax2.set_ylim([0, 200])
                 ax2.tick_params(axis='y', labelcolor=color)
                 plt.title('')
                 fig.tight_layout()
@@ -633,7 +634,13 @@ MSSdata = therapydata[therapydata['ms_stat']=='MSS']
 #
 #
 print('DCR = ' + str(sum(MSIdata['diseaseControl'])/len(MSIdata['diseaseControl'])))
-print('ORR = ' + str((sum(MSIdata['best_response']=='PR')+sum(MSIdata['best_response']=='CR'))/len(MSIdata['best_response'])))
+ORR_count = (sum(MSIdata['best_response']=='PR')+sum(MSIdata['best_response']=='CR'))
+n = len(MSIdata['best_response'])
+ci = binomtest(ORR_count, n, ORR_count/n).proportion_ci()  # Use this line to compute the 95% CI for the proportions. Clopper-Pearson.
+yerr_min = ci.low * 100
+yerr_max = ci.high * 100
+print('ORR = ' + str(round(ORR_count/n*100, 3)) + '%')
+print('ORR CI: (' + str(round(yerr_min, 3)) + ', ' + str(round(yerr_max, 3)) + '%)')
 
 objective_response = []
 for i in MSIdata['best_response']:
@@ -646,6 +653,8 @@ MSIdata['objective_response'] = objective_response
 ttpData = [i for i in MSIdata['time_to_progression'] if i>0]
 print('Median PFS = ' + str(np.median(ttpData)/30.4368))
 print('36-month PFS = ' + str(sum([i > 36*30.4368 for i in ttpData])/len(ttpData) * 100))
+# np.savetxt(path_base + 'ttp.txt', ttpData, delimiter=' ')
+dill.dump(ttpData, open(path_base + "ttp.dump", 'wb'))
 
 print('MSI PD best responses: ' + str(sum(MSIdata['best_response']=='PD')/len(MSIdata['best_response']) * 100) + '%')
 print('MSI SD best responses: ' + str(sum(MSIdata['best_response']=='SD')/len(MSIdata['best_response']) * 100) + '%')
@@ -713,11 +722,29 @@ MSIdata['is_clonal_neoant'] = MSIdata['is_clonal_neoant'].replace([0, 1], ['Abse
 MSSdata['is_clonal_neoant'] = MSSdata['is_clonal_neoant'].replace([0, 1], ['Absent', 'Present'])
 absentdata = MSIdata[MSIdata['is_clonal_neoant']=='Absent']
 presentdata = MSIdata[MSIdata['is_clonal_neoant']=='Present']
+absentDRs = absentdata[absentdata['LTR']=='Durable Response']
+presentDRs = presentdata[presentdata['LTR']=='Durable Response']
 
 print('MMRD tumors with clonal neoantigen, fraction DR: ' + str(sum(presentdata['LTR']=='Durable Response')/len(presentdata['LTR'])))
 print('MMRD tumors without clonal neoantigen, fraction DR: ' + str(sum(absentdata['LTR']=='Durable Response')/len(absentdata['LTR'])))
+print('MMRD tumors without clonal neoantigen, fraction AR: ' + str(sum(absentdata['LTR']=='Acquired Resistance')/len(absentdata['LTR'])))
+print('MMRD tumors without clonal neoantigen, fraction NR: ' + str(sum(absentdata['LTR']=='No Response')/len(absentdata['LTR'])))
+print('MMRD tumors without clonal neoantigen, number DR: ' + str(sum(absentdata['LTR']=='Durable Response')))
+print('MMRD tumors without clonal neoantigen, number AR: ' + str(sum(absentdata['LTR']=='Acquired Resistance')))
+print('MMRD tumors without clonal neoantigen, number NR: ' + str(sum(absentdata['LTR']=='No Response')))
 print('Fraction of MMRD DRs arising from tumor w/ clonal neoantigen: ' + str(sum((MSIdata['is_clonal_neoant']=='Present')*(MSIdata['LTR']=='Durable Response'))/sum(MSIdata['LTR']=='Durable Response')))
 print('Fraction of MMRD DRs arising from tumor w/o clonal neoantigen: ' + str(sum((MSIdata['is_clonal_neoant']=='Absent')*(MSIdata['LTR']=='Durable Response'))/sum(MSIdata['LTR']=='Durable Response')))
+
+print('Average num subclones of MMRD DRs with clonal neoantigen: ' + str(round(np.mean(presentDRs['num_subclones']), 2)) + ' +/- ' + str(round(np.std(presentDRs['num_subclones']), 2)))
+print('Average num subclones of MMRD DRs with clonal neoantigen: ' + str(round(np.mean(absentDRs['num_subclones']), 2)) + ' +/- ' + str(round(np.std(absentDRs['num_subclones']), 2)))
+print('Average tree index of MMRD DRs with clonal neoantigen: ' + str(round(np.mean(presentDRs['tree_index']), 2)) + ' +/- ' + str(round(np.std(presentDRs['tree_index']), 2)))
+print('Average tree index of MMRD DRs with clonal neoantigen: ' + str(round(np.mean(absentDRs['tree_index']), 2)) + ' +/- ' + str(round(np.std(absentDRs['tree_index']), 2)))
+
+print('Average weighted immunogenicity of MMRD DRs with clonal neoantigen: ' + str(round(np.mean(presentDRs['axr_weighted_anteginicity']), 2)) + ' +/- ' + str(round(np.std(presentDRs['axr_weighted_anteginicity']), 2)))
+print('Average weighted immunogenicity of MMRD DRs with clonal neoantigen: ' + str(round(np.mean(absentDRs['axr_weighted_anteginicity']), 2)) + ' +/- ' + str(round(np.std(absentDRs['axr_weighted_anteginicity']), 2)))
+print('Average max immunogenicity of MMRD DRs with clonal neoantigen: ' + str(round(np.mean(presentDRs['maxNAquality']), 2)) + ' +/- ' + str(round(np.std(presentDRs['maxNAquality']), 2)))
+print('Average max immunogenicity of MMRD DRs with clonal neoantigen: ' + str(round(np.mean(absentDRs['maxNAquality']), 2)) + ' +/- ' + str(round(np.std(absentDRs['maxNAquality']), 2)))
+
 
 mmrp_absentdata = MSSdata[MSSdata['is_clonal_neoant']=='Absent']
 mmrp_presentdata = MSSdata[MSSdata['is_clonal_neoant']=='Present']
@@ -973,7 +1000,7 @@ for ci_i in range(len(MMRD_clinical_n_vec)):
     ci_sim = binomtest(MMRD_sim_n_vec[ci_i], sum(MMRD_sim_n_vec), MMRD_sim_perc_vec[ci_i] / 100).proportion_ci()
     MMRD_sim_yerrormin.append(ci_sim.low * 100)
     MMRD_sim_yerrmax.append(ci_sim.high * 100)
-    MMRD_sim_errbar_magnitude.append(ci_sim.high - ci_sim.low)  # scale by error bar size in clinical data
+    MMRD_sim_errbar_magnitude.append(ci_sim.high - ci_sim.low)  # scale by error bar size in simulated data
 MMRD_clinical_yerr = [abs(MMRD_clinical_frac_vec - MMRD_clinical_yerrmin), abs(MMRD_clinical_frac_vec - MMRD_clinical_yerrmax)]
 MMRD_sim_yerr = [abs(MMRD_sim_perc_vec - MMRD_sim_yerrormin), abs(MMRD_sim_perc_vec - MMRD_sim_yerrmax)]
 clincomp = {'Source':['Clinical','Clinical','Clinical','Clinical', 'Simulation','Simulation','Simulation','Simulation'],
@@ -1111,16 +1138,12 @@ clin_med_yerr = [[clin_med_yerrmin], [clin_med_yerrmax]]
 clin_36mo_yerrmin = abs(clinical_month36_pfs - 34)
 clin_36mo_yerrmax = abs(clinical_month36_pfs - 50.4)
 clin_36mo_yerr = [[clin_36mo_yerrmin], [clin_36mo_yerrmax]]
-# how to get 95% CI of a median?
-sorted_ttp = np.sort(ttpData)
-n = len(ttpData)
-q = 0.5 # quantile of interest: median
-z = 1.96 # corresponding to 95% confidence interval
-j = int(np.ceil(n*q - z*np.sqrt(n*q*(1-q))))
-k = int(np.ceil(n*q + z*np.sqrt(n*q*(1-q))))
-print('95% CI median PFS: ('+ str(sorted_ttp[j]) + ', ' + str(sorted_ttp[k]) + ')')
-sim_med_yerrmin = abs(sim_med_pfs - sorted_ttp[j])
-sim_med_yerrmax = abs(sim_med_pfs - sorted_ttp[k])
+# how to get 95% CI of a median? Bootstrapping! Please see CIbootstrap.py
+# hard-coding that value here:
+sim_ci_min = 6.24
+sim_ci_max = 30.39
+sim_med_yerrmin = abs(sim_med_pfs - sim_ci_min)
+sim_med_yerrmax = abs(sim_med_pfs - sim_ci_max)
 sim_med_yerr = [[sim_med_yerrmin], [sim_med_yerrmax]]
 # formula from: Practical Nonparametric Statistics, 3rd Edition by W.J. Conover
 # month 36 PFS is binomial (independent Bernoulli trials) -- use CLopper-Pearson for CI
@@ -1197,7 +1220,7 @@ plt.xlabel('')
 plt.savefig(cohort_plot_path + "DR_LTR_MSI_boxenplot_maxNAquality.png")
 plt.savefig(cohort_plot_path + "DR_LTR_MSI_boxenplot_maxNAquality.svg", format='svg')
 
-# Supplementary Figure 4(b) - center
+# Supplementary Figure 4(b) - right
 sns.set_palette(sns.color_palette(color_palette))
 plt.figure(figsize=(5, 4))
 plt.subplots_adjust(left=0.15, right=0.95, bottom = 0.2, top = 0.95)
@@ -1219,27 +1242,36 @@ ax.tick_params(axis='y', labelsize=12)
 plt.savefig(cohort_plot_path + "DR_LTR_MSI_boxenplot_axrmean.png")
 plt.savefig(cohort_plot_path + "DR_LTR_MSI_boxenplot_axrmean.svg", format='svg')
 
-# Supplementary Figure 4(a) - right
+MSI_DRs_minNA_gr0 = MSI_DRs.loc[MSI_DRs['minNAquality']>0.1]
+MSI_DRs_minNA_eq0 = MSI_DRs.loc[MSI_DRs['minNAquality']<=0.1]
+print('MMRD DR tumors with remaining founder, total number: ' + str(len(MSI_DRs_minNA_eq0)))
+print('MMRD DR tumors with remaining founder, number NR: ' + str(len(MSI_DRs_minNA_eq0.loc[MSI_DRs_minNA_eq0['response_pseud']=='NR'])))
+print('MMRD DR tumors with remaining founder, number w/ PsP: ' + str(len(MSI_DRs_minNA_eq0.loc[MSI_DRs_minNA_eq0['response_pseud']=='PsP'])))
+print('MMRD DR tumors with remaining founder, number w/ no PsP: ' + str(len(MSI_DRs_minNA_eq0.loc[MSI_DRs_minNA_eq0['response_pseud']=='No PsP'])))
+
 sns.set_palette(sns.color_palette(color_palette))
 plt.figure(figsize=(5, 4))
 plt.subplots_adjust(left=0.15, right=0.95, bottom = 0.2, top = 0.95)
-ax = sns.boxenplot(data=MSI_DRs, x='is_clonal_neoant', y='unique_TMB_10perc', order=['Absent', 'Present'], showfliers=False, k_depth=4)
+ax = sns.boxenplot(data=MSI_DRs_minNA_gr0, x='is_clonal_neoant', y='minNAquality', order=['Absent', 'Present'],
+                 showfliers=False, k_depth=4)
 # add_stat_annotation(
-#     ax, data=MSI_DRs, x='is_clonal_neoant', y='unique_TMB_10perc', order=['Absent', 'Present'],
+#     ax, data=MSI_DRs_minNA_gr0, x='is_clonal_neoant', y='minNAquality', order=['Absent', 'Present'],
 #     box_pairs=[('Absent', 'Present')],
-#     test='t-test_welch', text_format='star', loc='inside', verbose=2, fontsize=9)
-outlier_df = pd.DataFrame(columns=MSI_DRs.columns)
+#     test='t-test_welch', text_format='star', loc='outside', verbose=2, fontsize=9)
+outlier_df = pd.DataFrame(columns=MSI_DRs_minNA_gr0.columns)
 for i in range(len(clonal_types)):
-    minv, maxv = np.percentile(MSI_DRs.loc[MSI_DRs['is_clonal_neoant']==clonal_types[i]]['unique_TMB_10perc'], [3.125, 96.875])
-    outlier_df = pd.concat([outlier_df, MSI_DRs.loc[(MSI_DRs['is_clonal_neoant']==clonal_types[i]) & ((MSI_DRs['unique_TMB_10perc'] < minv) | (MSI_DRs['unique_TMB_10perc'] > maxv))]], ignore_index=True)
-sns.stripplot(data=outlier_df, x='is_clonal_neoant', y='unique_TMB_10perc', order=['Absent', 'Present'], size=2, jitter=0.04, color='dimgray')
+    minv, maxv = np.percentile(MSI_DRs_minNA_gr0.loc[MSI_DRs_minNA_gr0['is_clonal_neoant']==clonal_types[i]]['minNAquality'], [3.125, 96.875])
+    outlier_df = pd.concat([outlier_df, MSI_DRs_minNA_gr0.loc[(MSI_DRs_minNA_gr0['is_clonal_neoant']==clonal_types[i]) & ((MSI_DRs_minNA_gr0['minNAquality'] < minv) | (MSI_DRs_minNA_gr0['minNAquality'] > maxv))]], ignore_index=True)
+sns.stripplot(data=outlier_df, x='is_clonal_neoant', y='minNAquality', order=['Absent', 'Present'], size=2, jitter=0.04, color='dimgray')
+ax.set_yscale('log')
 plt.xlabel('')
-# plt.yticks([1e6, 2e6], ['1e6', '2e6'])
-plt.ylabel('Neoantigens in $\geq$10% of tumor')
-plt.savefig(cohort_plot_path + "DR_LTR_MSI_boxenplot_unique_TMB_10perc.png")
-plt.savefig(cohort_plot_path + "DR_LTR_MSI_boxenplot_unique_TMB_10perc.svg", format='svg')
+plt.ylabel('Weakest neoantigen')
+# plt.ylim([0, 1680])
+ax.tick_params(axis='y', labelsize=12)
+plt.savefig(cohort_plot_path + "DR_LTR_MSI_boxenplot_weakestneoant.png")
+plt.savefig(cohort_plot_path + "DR_LTR_MSI_boxenplot_weakestneoant.svg", format='svg')
 
-# Supplementary Figure 4(a) - center
+# Supplementary Figure 4(a) - right
 sns.set_palette(sns.color_palette(color_palette))
 plt.figure(figsize=(5, 4))
 plt.subplots_adjust(left=0.15, right=0.95, bottom = 0.2, top = 0.95)
@@ -1268,10 +1300,10 @@ sns.set_palette(sns.color_palette(color_palette))
 plt.figure(figsize=(5, 4))
 plt.subplots_adjust(left=0.15, right=0.95, bottom = 0.2, top = 0.95)
 ax = sns.boxplot(data=MSI_DRs, x='is_clonal_neoant', y='num_subclones', order=['Absent', 'Present'], showfliers=False)
-add_stat_annotation(
-    ax, data=MSI_DRs, x='is_clonal_neoant', y='num_subclones', order=['Absent', 'Present'],
-    box_pairs=[('Absent', 'Present')],
-    test='t-test_welch', text_format='star', loc='inside', verbose=2, fontsize=9)
+# add_stat_annotation(
+#     ax, data=MSI_DRs, x='is_clonal_neoant', y='num_subclones', order=['Absent', 'Present'],
+#     box_pairs=[('Absent', 'Present')],
+#     test='t-test_welch', text_format='star', loc='inside', verbose=2, fontsize=9)
 sns.swarmplot(data=outlier_df, x='is_clonal_neoant', y='num_subclones', order=['Absent', 'Present'], size=5, color='dimgray')
 plt.xlabel('')
 plt.ylabel('Number of subclones')
@@ -1353,8 +1385,9 @@ for i in range(len(LTR_response_types)):
 sns.stripplot(data=outlier_df, x='LTR', y='unique_TMB_10perc', order=['No Response', 'Acquired Resistance', 'Durable Response'], size=2, jitter=0.04, color='dimgray')
 plt.xlabel('')
 #plt.yticks([0.5e6, 1e6, 1.5e6, 2e6], ['0.5e6', '1e6', '1.5e6', '2e6'])
-plt.ylabel('Neoantigens in $\geq$10% of tumor')
+plt.ylabel('Number of neoantigenic mutations')
 ax.set_xticklabels(['NR', 'AR', 'DR'])
+ax.tick_params(axis='y', labelsize=12)
 plt.savefig(cohort_plot_path + "Fig5c.png")
 plt.savefig(cohort_plot_path + "Fig5c.svg")
 
@@ -1377,6 +1410,7 @@ sns.stripplot(data=outlier_df, x='LTR', y='tree_index', order=['No Response', 'A
 plt.xlabel('')
 plt.ylabel('Tree index')
 ax.set_xticklabels(['NR', 'AR', 'DR'])
+ax.tick_params(axis='y', labelsize=12)
 plt.savefig(cohort_plot_path + "Fig5d.png")
 plt.savefig(cohort_plot_path + "Fig5d.svg")
 
@@ -1398,9 +1432,10 @@ sns.stripplot(data=outlier_df, x='LTR', y='minNAquality', order=['No Response', 
 ax.set_yscale('log')
 plt.xlabel('')
 plt.ylabel('Weakest neoantigen')
+ax.tick_params(axis='y', labelsize=12)
 ax.set_xticklabels(['NR', 'AR', 'DR'])
-plt.savefig(cohort_plot_path + "LTR_MSI_minNAquality.png")
-plt.savefig(cohort_plot_path + "LTR_MSI_minNAquality.svg")
+plt.savefig(cohort_plot_path + "Fig5f.png")
+plt.savefig(cohort_plot_path + "Fig5f.svg")
 
 tot = len(MSIdata_minNA_eq0)
 ct_NR = len(MSIdata_minNA_eq0.loc[MSIdata_minNA_eq0['LTR']=='No Response'])/tot * 100
@@ -1420,7 +1455,7 @@ ct_DR = len(MSIdata_minNA_eq0.loc[MSIdata_minNA_eq0['LTR']=='Durable Response'])
 #
 #
 #
-# Supplementary Figure 3(a) MMRD PsP Frequency, clinical + sim + sim (8w)
+# Supplementary Figure 5(a) MMRD PsP Frequency, clinical + sim + sim (8w)
 clinical_total_pts = 61
 clinical_num_psp = 9
 clinical_frac = clinical_num_psp/clinical_total_pts
@@ -1477,7 +1512,11 @@ for i in range(len(MSIdata['response_pseud'])):
     else:
         print('what is happening at i=' + str(i) + '?')
 
-# Supplementary Figure 3(b) - max NA quality
+print('Number of MMRD tumors with NR: ' + str(len(MSIdata[MSIdata['response_pseud']=='NR'])))
+print('Number of MMRD tumors with PsP: ' + str(len(MSIdata[MSIdata['response_pseud']=='PsP'])))
+print('Number of MMRD tumors with No PsP: ' + str(len(MSIdata[MSIdata['response_pseud']=='No PsP'])))
+
+# Supplementary Figure 5(b) - max NA quality
 color_palette = ['palegreen','chartreuse', 'green']
 sns.set_palette(sns.color_palette(color_palette))
 plt.figure(figsize=(5, 4))
@@ -1502,7 +1541,7 @@ plt.xlabel('')
 plt.savefig(cohort_plot_path + "psp_brokendown_max_qual.png", format='png')
 plt.savefig(cohort_plot_path + "psp_brokendown_max_qual.svg", format='svg')
 
-# Supplementary Figure 3(c) - weighted NA quality
+# Supplementary Figure 5(c) - weighted NA quality
 sns.set_palette(sns.color_palette(color_palette))
 plt.figure(figsize=(5, 4))
 plt.subplots_adjust(left=0.25, right=0.95, bottom = 0.1, top = 0.85)
@@ -1526,7 +1565,7 @@ plt.xlabel('')
 plt.savefig(cohort_plot_path + "psp_brokendown_mean_qual.png", format='png')
 plt.savefig(cohort_plot_path + "psp_brokendown_mean_qual.svg", format='svg')
 
-# Supp Fig 3(e) - Tree index
+# Supp Fig 5(e) - Tree index
 sns.set_palette(sns.color_palette(color_palette))
 plt.figure(figsize=(5, 4))
 plt.subplots_adjust(left=0.25, right=0.95, bottom = 0.1, top = 0.85)
@@ -1549,7 +1588,7 @@ plt.xlabel('')
 plt.savefig(cohort_plot_path + "psp_brokendown_tree_index.png", format='png')
 plt.savefig(cohort_plot_path + "psp_brokendown_tree_index.svg", format='svg')
 
-# Supplementary Figure 3(d) - number of clonal neoantigens
+# Supplementary Figure 5(d) - number of clonal neoantigens
 sns.set_palette(sns.color_palette(color_palette))
 plt.figure(figsize=(5, 4))
 plt.subplots_adjust(left=0.25, right=0.95, bottom = 0.1, top = 0.85)
@@ -1572,7 +1611,7 @@ plt.xlabel('')
 plt.savefig(cohort_plot_path + "psp_brokendown_num_clonal_neoant.png", format='png')
 plt.savefig(cohort_plot_path + "psp_brokendown_num_clonal_neoant.svg", format='svg')
 
-# Supplementary Figure 3(f) - weakest neoantigen quality
+# Supplementary Figure 5(f) - weakest neoantigen quality
 sns.set_palette(sns.color_palette(color_palette))
 plt.figure(figsize=(5, 4))
 plt.subplots_adjust(left=0.25, right=0.95, bottom = 0.1, top = 0.85)
@@ -1592,6 +1631,168 @@ plt.ylabel('Weakest neoantigen quality')
 ax.set_xticklabels(['NR', 'PsP', 'No PsP'])
 plt.savefig(cohort_plot_path + "psp_brokendown_minNAquality.png")
 plt.savefig(cohort_plot_path + "psp_brokendown_minNAquality.svg")
+#
+#
+#
+#
+#
+#
+#
+#
+#
+# Objective Response binary classification
+#
+#
+#
+# Load in clinical data from R script:
+# Objective response group:
+filename = 'clin_responsegroup_data.txt'
+response_group = []
+with open(path_to_clin_data + filename, 'r') as f:
+    content = f.readlines()
+    for i in content:
+        str = i.strip()
+        str = str.replace('"', '')
+        response_group.append(str)
+# Max clonal AxR score:
+filename = 'clin_maxclonalAxR_data.txt'
+clin_maxclonal = []
+with open(path_to_clin_data + filename, 'r') as f:
+    content = f.readlines()
+    for i in content:
+        num = float(''.join(list(i)[:-1]))
+        clin_maxclonal.append(num)
+# Max clonal AxR score:
+filename = 'clin_maxAxR_data.txt'
+clin_max = []
+with open(path_to_clin_data + filename, 'r') as f:
+    content = f.readlines()
+    for i in content:
+        num = float(''.join(list(i)[:-1]))
+        clin_max.append(num)
+# Preliminaries:
+plt.close('all')
+objective_response_types = ['NOR', 'OR']
+color_palette = ['lightgray', 'dimgray']
+d = {'Response Group': response_group,
+     'Max Clonal AxR': clin_maxclonal,
+     'Max AxR': clin_max}
+clin_df = pd.DataFrame(d)
+# IN SILICO Max neoantigen quality:
+sns.set_palette(sns.color_palette(color_palette))
+plt.figure(figsize=(5, 4))
+plt.subplots_adjust(left=0.25, right=0.95, bottom = 0.1, top = 0.85)
+ax = sns.boxplot(data=MSIdata, x='objective_response', y='maxNAquality', order=['NOR','OR'],
+                 showfliers=False)
+# add_stat_annotation(
+#     ax, data=MSIdata, x='objective_response', y='maxNAquality', order=['NOR','OR'],
+#     box_pairs=[("NOR", "OR")],
+#     test='t-test_welch', text_format='star', loc='outside', verbose=2, fontsize=9)
+# Result: NOR v.s. OR: Welch's t-test independent samples with Bonferroni correction, P_val=1.879e-16 stat=-8.258e+00
+outlier_df = pd.DataFrame(columns=MSIdata.columns)
+for i in range(len(objective_response_types)):
+    minv, maxv = np.percentile(MSIdata.loc[MSIdata['objective_response']==objective_response_types[i]]['maxNAquality'], [25, 75])
+    IQR = maxv - minv
+    outlier_df = pd.concat([outlier_df, MSIdata.loc[(MSIdata['objective_response']==objective_response_types[i]) & ((MSIdata['maxNAquality'] < (minv - 1.5*IQR)) | (MSIdata['maxNAquality'] > (maxv + 1.5*IQR)))]], ignore_index=True)
+sns.stripplot(data=outlier_df, x='objective_response', y='maxNAquality', order=['NOR','OR'], size=2, jitter=0.09, color='dimgray')
+plt.ylabel('Maximal neoantigen quality')
+# ax.set_yscale('log')
+ax.tick_params(axis='y', labelsize=12)
+plt.ylim([0, 1700])
+ax.set_xticklabels(['NOR','OR'])
+plt.xlabel('')
+plt.savefig(cohort_plot_path + "objresp_maxNAquality.png", format='png')
+plt.savefig(cohort_plot_path + "objresp_maxNAquality.svg", format='svg')
+#
+# IN SILICO Max clonal quality:
+sns.set_palette(sns.color_palette(color_palette))
+plt.figure(figsize=(5, 4))
+plt.subplots_adjust(left=0.25, right=0.95, bottom = 0.1, top = 0.85)
+ax = sns.boxplot(data=MSIclonal, x='objective_response', y='clonal_neoant_quality', order=['NOR', 'OR'],
+                 showfliers=False)
+# Subset to tumors with at least one clonal neoantigen. This excludes 2659 tumors (n = 2341).
+# add_stat_annotation(
+#     ax, data=MSIclonal, x='objective_response', y='clonal_neoant_quality', order=['NOR','OR'],
+#     box_pairs=[("NOR", "OR")],
+#     test='t-test_welch', text_format='star', loc='outside', verbose=2, fontsize=9)
+# Result: NOR v.s. OR: Welch's t-test independent samples with Bonferroni correction, P_val=1.223e-06 stat=-4.883e+00
+outlier_df = pd.DataFrame(columns=MSIclonal.columns)
+for i in range(len(objective_response_types)):
+    minv, maxv = np.percentile(MSIclonal.loc[MSIclonal['objective_response']==objective_response_types[i]]['clonal_neoant_quality'], [25, 75])
+    IQR = maxv - minv
+    outlier_df = pd.concat([outlier_df, MSIclonal.loc[(MSIclonal['objective_response']==objective_response_types[i]) & ((MSIclonal['clonal_neoant_quality'] < (minv - 1.5*IQR)) | (MSIdata['clonal_neoant_quality'] > (maxv + 1.5*IQR)))]], ignore_index=True)
+sns.stripplot(data=outlier_df, x='objective_response', y='clonal_neoant_quality', order=['NOR','OR'], size=2, jitter=0.09, color='dimgray')
+plt.xlabel('')
+plt.ylabel('Max clonal AxR score')
+plt.ylim([1, 200])
+#ax.set_yscale('log')
+ax.set_xticklabels(['NOR', 'OR'])
+#ax.set_yticks([0, 100, 200, 300])
+ax.tick_params(axis='y', labelsize=12)
+plt.savefig(cohort_plot_path + "objresp_maxClonalQuality.png", format='png')
+plt.savefig(cohort_plot_path + "objresp_maxClonalQuality.svg", format='svg')
+# IN CLINICO Max neoantigen quality:
+sns.set_palette(sns.color_palette(color_palette))
+plt.figure(figsize=(5, 4))
+plt.subplots_adjust(left=0.25, right=0.95, bottom = 0.1, top = 0.85)
+ax = sns.boxplot(data=clin_df, x='Response Group', y='Max AxR', order=['NOR','OR'],
+                 showfliers=True)
+# Hypothesis testing done in R
+plt.ylabel('Maximal neoantigen quality')
+#ax.set_yscale('log')
+ax.tick_params(axis='y', labelsize=12)
+plt.ylim([0, 375])
+ax.set_xticklabels(['NOR','OR'])
+plt.xlabel('')
+plt.savefig(cohort_plot_path + "clin_objresp_maxNAquality.png", format='png')
+plt.savefig(cohort_plot_path + "clin_objresp_maxNAquality.svg", format='svg')
+#
+# IN CLINICO Max clonal quality:
+sns.set_palette(sns.color_palette(color_palette))
+plt.figure(figsize=(5, 4))
+plt.subplots_adjust(left=0.25, right=0.95, bottom = 0.1, top = 0.85)
+ax = sns.boxplot(data=clin_df, x='Response Group', y='Max Clonal AxR', order=['NOR', 'OR'],
+                 showfliers=True)
+# Hypothesis testing done in R
+plt.xlabel('')
+plt.ylabel('Max clonal AxR score')
+plt.ylim([0, 375])
+# ax.set_yscale('log')
+ax.set_xticklabels(['NOR', 'OR'])
+#ax.set_yticks([0, 100, 200, 300])
+ax.tick_params(axis='y', labelsize=12)
+plt.savefig(cohort_plot_path + "clin_objresp_maxClonalQuality.png", format='png')
+plt.savefig(cohort_plot_path + "clin_objresp_maxClonalQuality.svg", format='svg')
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
 #
 #
 #
@@ -1969,3 +2170,22 @@ plt.savefig(cohort_plot_path + "psp_brokendown_minNAquality.svg")
 # # ax.set_xticklabels(['NR', 'AR', 'DR'])
 # # plt.savefig(cohort_plot_path + "LTR_MSI_minNAquality.png")
 # # plt.savefig(cohort_plot_path + "LTR_MSI_minNAquality.svg")
+# Supplementary Figure 4(a) - right
+# sns.set_palette(sns.color_palette(color_palette))
+# plt.figure(figsize=(5, 4))
+# plt.subplots_adjust(left=0.15, right=0.95, bottom = 0.2, top = 0.95)
+# ax = sns.boxenplot(data=MSI_DRs, x='is_clonal_neoant', y='unique_TMB_10perc', order=['Absent', 'Present'], showfliers=False, k_depth=4)
+# # add_stat_annotation(
+# #     ax, data=MSI_DRs, x='is_clonal_neoant', y='unique_TMB_10perc', order=['Absent', 'Present'],
+# #     box_pairs=[('Absent', 'Present')],
+# #     test='t-test_welch', text_format='star', loc='inside', verbose=2, fontsize=9)
+# outlier_df = pd.DataFrame(columns=MSI_DRs.columns)
+# for i in range(len(clonal_types)):
+#     minv, maxv = np.percentile(MSI_DRs.loc[MSI_DRs['is_clonal_neoant']==clonal_types[i]]['unique_TMB_10perc'], [3.125, 96.875])
+#     outlier_df = pd.concat([outlier_df, MSI_DRs.loc[(MSI_DRs['is_clonal_neoant']==clonal_types[i]) & ((MSI_DRs['unique_TMB_10perc'] < minv) | (MSI_DRs['unique_TMB_10perc'] > maxv))]], ignore_index=True)
+# sns.stripplot(data=outlier_df, x='is_clonal_neoant', y='unique_TMB_10perc', order=['Absent', 'Present'], size=2, jitter=0.04, color='dimgray')
+# plt.xlabel('')
+# # plt.yticks([1e6, 2e6], ['1e6', '2e6'])
+# plt.ylabel('Neoantigens in $\geq$10% of tumor')
+# plt.savefig(cohort_plot_path + "DR_LTR_MSI_boxenplot_unique_TMB_10perc.png")
+# plt.savefig(cohort_plot_path + "DR_LTR_MSI_boxenplot_unique_TMB_10perc.svg", format='svg')
