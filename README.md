@@ -1,5 +1,5 @@
 # neoantigen_public
-Publicly available code for work with CRC neoantigens.
+Publicly available code for work with CRC neoantigens. Typical install time: < 10 minutes.
 
 If you would like to try our code on a small set of tumors, please download the repo and run the "demo.py" script, which generates 10 MMRD and 10 MMRP tumors, simulates immunotherapy, and provides descriptive statistics about the results. Note that re-generating tumors requires an exact stochastic simulation (Gillespie algorithm) and is quite slow; you can expect about 10 minutes per tumor. We provide a sample set of tumors for you in the "demo_data" folder.
 
