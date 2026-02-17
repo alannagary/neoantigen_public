@@ -8,8 +8,10 @@ import dill
 # Information you may need to adjust:
 path_to_ARdata = 'C:/Users/Alanna/Desktop/Research_Code/Desktop_research/AxR_data.txt' # Set your path to the AxR data file, AxR_data.txt
 path_to_gridsearch = 'C:/Users/Alanna/Desktop/Research_Code/neoantigens/hyak_data/updated_code_oct_24/keynote_177/' # Set your path to the directory for your plots
+path_to_source_data = 'C:/Users/Alanna/Desktop/Research_Code/neoantigens/source_data/'
 regenerate_gridsearch = False # Do you want to re-generate the grid search for the initial value search? Warning: very slow if set to True!
 regenerate_optimization = False # Do you want to re-optimize over 5000 MMR-D tumors? Warning: very slow if set to True!
+export_source_data = True # Do you want to save source data?
 model_type = 'monoclonal' # Acceptable: polyclonal or monoclonal. If polyclonal, you will need to regenerate gridsearch and optimization.
 
 # Load in AxR data for later use
@@ -82,6 +84,11 @@ ax.invert_yaxis()
 plt.savefig(path_to_gridsearch + "maxrange_init_val_grid_search_" + model_type + "_logspace_nparray_monoclonal_maxruns_" + str(maxruns) + ".png")
 plt.savefig(path_to_gridsearch + "maxrange_init_val_grid_search_" + model_type + "_logspace_nparray_monoclonal_maxruns_" + str(maxruns) + ".svg")
 
+# Export source data (if selected):
+if export_source_data:
+    df = pd.DataFrame(ans_array, columns = k_mult_array)
+    df.index = m_mult_array
+    df.to_csv(path_to_source_data + 'SF1_gridsearch.csv', index=True)
 
 # Final optimization run:
 m_ind, k_ind = np.unravel_index(np.argmin(ans_array), ans_array.shape)

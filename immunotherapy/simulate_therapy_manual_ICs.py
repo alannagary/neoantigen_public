@@ -15,10 +15,12 @@ path_to_ARdata = 'C:/Users/Alanna/Desktop/Research_Code/Desktop_research/AxR_dat
 path_to_MMRD_data = 'C:/Users/Alanna/Desktop/Research_Code/neoantigens/hyak_data/updated_code_oct_24/MMRD/'
 path_to_MMRP_data = 'C:/Users/Alanna/Desktop/Research_Code/neoantigens/hyak_data/updated_code_oct_24/MMRP/'
 path_to_clin_data = 'C:/Users/Alanna/Desktop/Research_Code/Desktop_research/crc_neoant_clinical_validation/'
+path_to_source_data = 'C:/Users/Alanna/Desktop/Research_Code/neoantigens/source_data/'
 path_base = 'C:/Users/Alanna/Desktop/Research_Code/neoantigens/hyak_data/updated_code_oct_24/' # Path for cohort plots and therapydata
 model_type = 'monoclonal' # model type of T cell responses. Acceptable to run 'polyclonal' as well, but it may be slow.
 debug = False # Do you want to manually re-simulate immunotherapy for all 10,000 tumors? This is slow if set to True!
 make_plots = False # Do you want to plot the results? Default set to False for speed
+export_source_data = True # Do you want to export source data into a source data directory?
 
 
 # Load in AxR data for later use
@@ -43,14 +45,18 @@ speed_list = ['fast', 'fast'] # Speed of branching process (hard-coded)
 b = 0.25 # Birth rate for branching process (hard-coded)
 maxruns = 5000
 
+# Flag certain trajectories for source data export (used in paper figures):
+source_data_ids = [1482, 2946, 922, 1671, 156, 2009, 2163, 68, 245, 135, 341, 3831, 4275, 3832]
+
 # Simulate immunotherapy and collect response statistics
 try:
     if debug==True:
         raise Exception('Manual re-simulation for debugging purposes.')
     therapydata = pd.read_pickle(open(path_base + model_type + "therapydata_" + str(maxruns) + "_pandas_df.dump", 'rb'))
+    granulardata = dill.load(open(path_to_source_data + model_type + "_granular_immunotherapy_data_" + str(maxruns) + ".dump", 'rb'))
     print('Immunotherapy dataset with these parameters already created. Loading...')
 except:
-    print('Immunotherapy dataset with these parameters not already created. Creating...')
+    print('Immunotherapy dataset with these parameters not already created or debug mode selected. Creating...')
     # Define parameters for tumor growth, model
     sigma = 10  # cells produced per day, per Garcia, Bonhoeffer, Fu 2020 (more ref there)
     mu = 1e-2  # per day, per Garcia, Bonhoeffer, Fu 2020 (more ref there)
@@ -81,7 +87,10 @@ except:
          'best_response': [],
          'tumor_growth_rate': []}
     therapydata = pd.DataFrame(data=d)
-    all_TMB_timeseries = []
+    TMB_timeseries = {}
+    Effector_timeseries = {}
+    Tumor_mats = {}
+    AxR_vals_sd = {}
     all_num_solved = []
     ICskip = 0
     # Load in trees and begin work
@@ -93,13 +102,15 @@ except:
         tree_dicts = [f for f in os.listdir(path) if f.startswith('dilltree_' + speed + '_' + ms_stat)]
         kk = 0
         EOFflag = 0
-        TMB_timeseries = []
         num_solved = 0
         # Load dilled trees from data_gen script
         for dilled_tree_dict in tree_dicts:
             kk += 1
+            source_data_flag = False
             if kk > maxruns:
                 break
+            if kk in source_data_ids and ms_stat=='MSI':
+                source_data_flag = True
             # Unpack and processs
             try:
                 tree_dict = dill.load(open(path + '/' + dilled_tree_dict, "rb"))
@@ -138,6 +149,10 @@ except:
 
             # Assign m,k based on AxR data
             m, k, AxR_vals, new_AxR_ind = assign_k_and_m(AxR, AxR_ind, newNewMat, num_subclones, b_tumor, mu, a, sigma, m_proportionality_constant, k_proportionality_constant)
+
+            if source_data_flag:
+                Tumor_mats[str(kk)] = newNewMat
+                AxR_vals_sd[str(kk)] = AxR_vals
 
             # Find initial value populations
             init_vals, m_trunc = assign_ICs(newNewMat)
@@ -614,18 +629,103 @@ except:
             }
             cur_data = pd.DataFrame(tumor_dict)
             therapydata = pd.concat([therapydata, cur_data])
-            TMB_timeseries.append(TMB_over_time)
+            if source_data_flag:
+                TMB_timeseries[str(kk)] = subclone_sol
+                Effector_timeseries[str(kk)] = effector_over_time
             num_solved += 1
             print('Simulated therapy on ' + ms_stat + ' tumor # ' + str(kk) + ' out of ' + str(maxruns) + ' tumors; best response: ' + best_response)
-            all_TMB_timeseries.append(TMB_timeseries)
             all_num_solved.append(num_solved)
         therapydata.index=np.arange(1, len(therapydata)+1)
+        granulardata = [Tumor_mats, AxR_vals_sd, TMB_timeseries, Effector_timeseries]
+        dill.dump(granulardata, open(path_to_source_data + model_type + "_granular_immunotherapy_data_" + str(maxruns) + ".dump", 'wb'))
         dill.dump(therapydata, open(path_base + model_type + "therapydata_" + str(maxruns) + "_pandas_df.dump", 'wb'))
         print('Immunotherapy dataset with these parameters created. Saving to file...')
         print('Number of runs skipped due to nontrivial IC setup: ' + str(ICskip))
 
-MSIdata = therapydata[therapydata['ms_stat']=='MSI']
-MSSdata = therapydata[therapydata['ms_stat']=='MSS']
+
+[Tumor_mats, AxR_vals_sd, TMB_timeseries, Effector_timeseries] = granulardata
+MSIdata = therapydata[therapydata['ms_stat']=='MSI'] # Due to old naming convention, MSI data = MMR-D data (used to be labeled MSI-H)
+MSSdata = therapydata[therapydata['ms_stat']=='MSS'] # and MSS data = MMR-P data
+
+# Source data export:
+if export_source_data:
+    os.makedirs(path_to_source_data, exist_ok=True)  # create directory for plots of the entire simulated cohort
+
+    # Source data for Figs 2, 4(a&b), and SF 2
+    # Clonality/tree structure:
+    for key in Tumor_mats.keys():
+        arr = Tumor_mats[key]
+        axrs_list = np.array(AxR_vals_sd[key]) # keys are same for Tumor_mats and AxR_vals_sd
+        axrs = np.reshape(axrs_list, (len(axrs_list),1))
+        num_unique_neoants = arr.shape[1] - 2
+        colnames = ['total_pop', 'unique_pop'] + ["neoantigen_" + str(i) for i in range(1,num_unique_neoants+1)] + ["AxR_vals"]
+        df = pd.DataFrame(np.hstack((arr, axrs)), columns=colnames)
+        df.to_csv(path_to_source_data + 'clonal_structure_' + key + '_dataframe.csv', index=False)
+
+    # Tumor/subclonal populations over time:
+    for key in TMB_timeseries.keys():
+        arr = TMB_timeseries[key]
+        t = np.arange(1, arr.shape[1]+1, 1)
+        tot = [sum(arr[:, iii]) for iii in range(len(t))]
+        num_subclones = arr.shape[0]
+        colnames = ["subclone_" + str(i) for i in range(1, num_subclones+1)]
+        df = pd.DataFrame(np.transpose(arr), columns=colnames)
+        df['total_tumor'] = tot
+        df['days'] = t
+        df.to_csv(path_to_source_data + 'tumor_longitudinal_' + key + '_dataframe.csv', index=False)
+
+    # Effector populations over time (summed over monoclonal populations):
+    for key in Effector_timeseries.keys():
+        arr = TMB_timeseries[key]
+        t = np.arange(1, arr.shape[1]+1, 1)
+        tot = [sum(arr[:, iii]) for iii in range(len(t))]
+        data = {"effector_pop": Effector_timeseries[key],
+                "total_tumor_pop": tot,
+                "days": np.arange(1, len(Effector_timeseries[key])+1, 1)}
+        df = pd.DataFrame(data)
+        df.to_csv(path_to_source_data + 'effector_longitudinal_' + key + '_dataframe.csv', index=False)
+
+    # Source data for Fig 3
+    df = MSIdata[['best_response',
+                  'time_to_progression',
+                  'response_12w']]
+    df.to_csv(path_to_source_data + 'Fig3_MMRD.csv', index=False)
+    df = MSSdata['response_12w']
+    df.to_csv(path_to_source_data + 'Fig3_MMRP.csv', index=False)
+
+    # Source data for Fig 4 (c, right; d, left)
+    df = MSIdata[['LTR',
+                  'best_response',
+                  'response_12w',
+                  'num_subclones']]
+    df.to_csv(path_to_source_data + 'Fig4_MMRD.csv', index=False)
+    df = MSSdata['LTR']
+    df.to_csv(path_to_source_data + 'Fig4_MMRP.csv', index=False)
+
+    # Source data for Fig 5
+    df = MSIdata[['LTR',
+                  'maxNAquality',
+                  'axr_weighted_anteginicity',
+                  'unique_TMB_10perc',
+                  'tree_index',
+                  'is_clonal_neoant',
+                  'minNAquality']]
+    df.to_csv(path_to_source_data + 'Fig5_MMRD.csv', index=False)
+
+    # Source data for SF 3
+    MSI_DRs = MSIdata[MSIdata['LTR'] == 'Durable Response']
+    df = MSI_DRs[['maxNAquality',
+                  'axr_weighted_anteginicity',
+                  'num_subclones',
+                  'tree_index',
+                  'is_clonal_neoant']]
+    df.to_csv(path_to_source_data + 'SF3_MMRD_DRs.csv', index=False)
+
+    # Source data for SF 4 is output AT END OF FILE
+    # Source data for SF 5 is AT END OF FILE
+#
+#
+#
 #
 #
 #
@@ -1164,7 +1264,8 @@ x_loc = [p.get_x() + 0.5*p.get_width() for p in ax_0.patches]
 y_loc = [p.get_height() for p in ax_0.patches]
 ax[0].errorbar(x=x_loc[0], y=y_loc[0], yerr=clin_36mo_yerr, fmt='.', c='k')
 ax[0].errorbar(x=x_loc[1], y=y_loc[1], yerr=sim_36mo_yerr, fmt='.', c='k')
-ax[0].set_xlabel('')
+ax[0].set_xticklabels('')
+ax[0].set_xlabel('36-month')
 ax[0].set_ylabel('Percent')
 ax[0].legend(loc = 'upper right', fontsize=12)
 ax[0].set_ylim([0, 70])
@@ -1173,13 +1274,16 @@ ax[0].set_title('MMR-D PFS')
 ax_1 = sns.barplot(data=clincomp_df[:2], x='PFS_type', y='PFS', hue='Source', ax=ax[1])
 x_loc = [p.get_x() + 0.5*p.get_width() for p in ax_1.patches]
 y_loc = [p.get_height() for p in ax_1.patches]
+jitter = np.random.normal(0,0.02, len(ttpData))
+ax[1].scatter([x_loc[1]] * len(ttpData) + jitter, ttpData, s=2, alpha = 0.2, color='dimgray')
 ax[1].errorbar(x=x_loc[0], y=y_loc[0], yerr=clin_med_yerr, fmt='.', c='k')
 ax[1].errorbar(x=x_loc[1], y=y_loc[1], yerr=sim_med_yerr, fmt='.', c='k')
-ax[1].set_xlabel('')
+ax[1].set_xlabel('Duration')
+ax[1].set_xticklabels('')
 ax[1].set_ylabel('Months')
 ax[1].set_ylim([0, 70])
 ax[1].set_title('MMR-D PFS')
-ax[1].legend(loc = 'upper right', fontsize=12)
+ax[1].get_legend().remove()
 plt.savefig(cohort_plot_path + "clincomp_PFS.png")
 plt.savefig(cohort_plot_path + "clincomp_PFS.svg", format='svg')
 #
@@ -1524,9 +1628,13 @@ plt.subplots_adjust(left=0.25, right=0.95, bottom = 0.1, top = 0.85)
 ax = sns.boxenplot(data=MSIdata, x='response_pseud', y='maxNAquality', order=['NR', 'PsP', 'No PsP'],
                  showfliers=False, k_depth=4)
 # add_stat_annotation(
-#     ax, data=MSIdata, x='response_pseud', y='axr_weighted_anteginicity', order=['NR', 'PsP', 'No PsP'],
+#     ax, data=MSIdata, x='response_pseud', y='maxNAquality', order=['NR', 'PsP', 'No PsP'],
 #     box_pairs=[('NR', 'PsP'), ('NR', 'No PsP'), ('PsP', 'No PsP')],
 #     test='t-test_welch', text_format='star', loc='inside', verbose=2, fontsize=9)
+# Result:
+# NR v.s. PsP: Welch's t-test independent samples with Bonferroni correction, P_val=3.792e-01 stat=1.529e+00
+# PsP v.s. No PsP: Welch's t-test independent samples with Bonferroni correction, P_val=1.226e-08 stat=-5.913e+00
+# NR v.s. No PsP: Welch's t-test independent samples with Bonferroni correction, P_val=4.883e-06 stat=-4.805e+00
 outlier_df = pd.DataFrame(columns=MSIdata.columns)
 for i in range(len(psp_types)):
     minv, maxv = np.percentile(MSIdata.loc[MSIdata['response_pseud']==psp_types[i]]['maxNAquality'], [3.125, 96.875])
@@ -1551,6 +1659,10 @@ ax = sns.boxenplot(data=MSIdata, x='response_pseud', y='axr_weighted_anteginicit
 #     ax, data=MSIdata, x='response_pseud', y='axr_weighted_anteginicity', order=['NR', 'PsP', 'No PsP'],
 #     box_pairs=[('NR', 'PsP'), ('NR', 'No PsP'), ('PsP', 'No PsP')],
 #     test='t-test_welch', text_format='star', loc='inside', verbose=2, fontsize=9)
+# Result:
+# NR v.s. PsP: Welch's t-test independent samples with Bonferroni correction, P_val=1.000e+00 stat=6.654e-01
+# PsP v.s. No PsP: Welch's t-test independent samples with Bonferroni correction, P_val=7.471e-26 stat=-1.074e+01
+# NR v.s. No PsP: Welch's t-test independent samples with Bonferroni correction, P_val=1.721e-29 stat=-1.146e+01
 outlier_df = pd.DataFrame(columns=MSIdata.columns)
 for i in range(len(psp_types)):
     minv, maxv = np.percentile(MSIdata.loc[MSIdata['response_pseud']==psp_types[i]]['axr_weighted_anteginicity'], [3.125, 96.875])
@@ -1575,6 +1687,10 @@ ax = sns.boxenplot(data=MSIdata, x='response_pseud', y='tree_index', order=['NR'
 #     ax, data=MSIdata, x='response_pseud', y='tree_index', order=['NR', 'PsP', 'No PsP'],
 #     box_pairs=[('NR', 'PsP'), ('NR', 'No PsP'), ('PsP', 'No PsP')],
 #     test='t-test_welch', text_format='star', loc='inside', verbose=2, fontsize=9)
+# Result:
+# NR v.s. PsP: Welch's t-test independent samples with Bonferroni correction, P_val=8.202e-30 stat=1.171e+01
+# PsP v.s. No PsP: Welch's t-test independent samples with Bonferroni correction, P_val=4.880e-06 stat=4.815e+00
+# NR v.s. No PsP: Welch's t-test independent samples with Bonferroni correction, P_val=3.273e-112 stat=2.336e+01
 outlier_df = pd.DataFrame(columns=MSIdata.columns)
 for i in range(len(psp_types)):
     minv, maxv = np.percentile(MSIdata.loc[MSIdata['response_pseud']==psp_types[i]]['tree_index'], [3.125, 96.875])
@@ -1598,6 +1714,10 @@ ax = sns.boxenplot(data=MSIdata, x='response_pseud', y='num_clonal_neoant', orde
 #     ax, data=MSIdata, x='response_pseud', y='num_clonal_neoant', order=['NR', 'PsP', 'No PsP'],
 #     box_pairs=[('NR', 'PsP'), ('NR', 'No PsP'), ('PsP', 'No PsP')],
 #     test='t-test_welch', text_format='star', loc='inside', verbose=2, fontsize=9)
+# Result:
+# NR v.s. PsP: Welch's t-test independent samples with Bonferroni correction, P_val=1.272e-53 stat=-1.634e+01
+# PsP v.s. No PsP: Welch's t-test independent samples with Bonferroni correction, P_val=5.875e-10 stat=-6.398e+00
+# NR v.s. No PsP: Welch's t-test independent samples with Bonferroni correction, P_val=3.149e-170 stat=-2.929e+01
 outlier_df = pd.DataFrame(columns=MSIdata.columns)
 for i in range(len(psp_types)):
     minv, maxv = np.percentile(MSIdata.loc[MSIdata['response_pseud']==psp_types[i]]['num_clonal_neoant'], [3.125, 96.875])
@@ -1617,9 +1737,13 @@ plt.figure(figsize=(5, 4))
 plt.subplots_adjust(left=0.25, right=0.95, bottom = 0.1, top = 0.85)
 ax = sns.boxenplot(data=MSIdata_minNA_gr0, x='response_pseud', y='minNAquality', order=['NR', 'PsP', 'No PsP'], showfliers=False, k_depth=4)
 # add_stat_annotation(
-#     ax, data=MSIdata, x='response_pseud', y='num_clonal_neoant', order=['NR', 'PsP', 'No PsP'],
+#     ax, data=MSIdata, x='response_pseud', y='minNAquality', order=['NR', 'PsP', 'No PsP'],
 #     box_pairs=[('NR', 'PsP'), ('NR', 'No PsP'), ('PsP', 'No PsP')],
 #     test='t-test_welch', text_format='star', loc='inside', verbose=2, fontsize=9)
+# Result:
+# NR v.s. PsP: Welch's t-test independent samples with Bonferroni correction, P_val=2.074e-76 stat=-2.036e+01
+# PsP v.s. No PsP: Welch's t-test independent samples with Bonferroni correction, P_val=2.333e-53 stat=-1.579e+01
+# NR v.s. No PsP: Welch's t-test independent samples with Bonferroni correction, P_val=5.615e-56 stat=-1.620e+01
 outlier_df = pd.DataFrame(columns=MSIdata_minNA_gr0.columns)
 for i in range(len(psp_types)):
     minv, maxv = np.percentile(MSIdata_minNA_gr0.loc[MSIdata_minNA_gr0['response_pseud']==psp_types[i]]['minNAquality'], [3.125, 96.875])
@@ -1765,7 +1889,25 @@ plt.savefig(cohort_plot_path + "clin_objresp_maxClonalQuality.png", format='png'
 plt.savefig(cohort_plot_path + "clin_objresp_maxClonalQuality.svg", format='svg')
 #
 #
-#
+# Final export of source data:
+# Source data export:
+if export_source_data:
+    # Source data for SF 4:
+    df = MSIdata[['objective_response',
+                  'clonal_neoant_quality']]
+    df.to_csv(path_to_source_data + 'SF4_insilicoMMRD.csv', index=False)
+    clin_df.to_csv(path_to_source_data + 'SF4_inclinicoMMRD.csv', index=False)
+
+    # Source data for SF 5:
+    df = MSIdata[['w8_subsampled_num_pseudoprogression_events',
+                  'num_pseudoprogression_events',
+                  'response_pseud',
+                  'maxNAquality',
+                  'axr_weighted_anteginicity',
+                  'num_clonal_neoant',
+                  'tree_index',
+                  'minNAquality']]
+    df.to_csv(path_to_source_data + 'SF5_MMRD.csv', index=False)
 #
 #
 #
