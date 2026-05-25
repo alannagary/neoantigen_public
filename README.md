@@ -1,5 +1,6 @@
 # neoantigen_public
-Publicly available code for work with CRC neoantigens. 
+Publicly available code for work with CRC neoantigens.
+Sholokhova A, Kaveh K, Bozic I. Neoantigen evolution and response to checkpoint inhibitor immunotherapy in colorectal cancer. Nature Communications 17:4543  (2026).
 
 [![DOI](https://zenodo.org/badge/842756305.svg)](https://doi.org/10.5281/zenodo.18676798)
 
